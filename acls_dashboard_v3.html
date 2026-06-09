@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奇美醫院 ACLS/ALS 數位管理大平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base:       #080f1c;
+            --bg-card:       rgba(12, 24, 44, 0.88);
+            --bg-card-hover: rgba(16, 32, 58, 0.95);
+            --border:        rgba(255,255,255,0.09);
+            --border-hover:  rgba(255,255,255,0.2);
+            --cyan:   #00e5ff;
+            --blue:   #4facfe;
+            --green:  #00e676;
+            --gold:   #ffd740;
+            --red:    #ff5252;
+            --purple: #b388ff;
+            --text-1: #f0f4ff;
+            --text-2: #94a3b8;
+            --text-3: #4a5568;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+            background-color: #020810;
+            color: var(--text-1);
+            min-height: 100vh;
+            padding: 16px;
+            position: relative;
+        }
+        #starfield { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+        body > *:not(#starfield) { position: relative; z-index: 1; }
+        #loading-overlay {
+            position: fixed; inset: 0; background: var(--bg-base);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 16px; z-index: 9999; transition: opacity 0.4s ease;
+        }
+        #loading-overlay.fade-out { opacity: 0; pointer-events: none; }
+        #loading-overlay.hidden { display: none; }
+        .spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(79,172,254,0.15); border-top-color: var(--blue); animation: spin 0.8s linear infinite; }
+        .loading-text { color: var(--text-2); font-size: 0.9rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .header {
+            text-align: center; padding: 28px 0 10px;
+            font-family: 'Noto Serif TC', "PingFang TC", serif;
+            font-size: clamp(1.4rem, 3.8vw, 2.4rem);
+            font-weight: 900; letter-spacing: 6px;
+            background: linear-gradient(135deg, #fff 10%, #a8d8ff 45%, #00e5ff 75%, #ffd740);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            animation: headerGlow 4s ease-in-out infinite;
+        }
+        @keyframes headerGlow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(0,229,255,0.15)); }
+            50%       { filter: drop-shadow(0 0 22px rgba(0,229,255,0.45)) drop-shadow(0 0 40px rgba(79,172,254,0.2)); }
+        }
+        .header-sub { text-align: center; font-size: 0.78rem; color: var(--text-2); letter-spacing: 3px; margin-top: 6px; margin-bottom: 24px; opacity: 0.7; }
+        .tab-bar {
+            display: flex; justify-content: center; gap: 8px;
+            margin: 0 auto 28px; max-width: 500px;
+            background: rgba(5,12,28,0.7); padding: 6px;
+            border-radius: 30px; border: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .tab-btn { flex: 1; padding: 10px 14px; font-size: 0.88rem; font-weight: 600; color: var(--text-2); background: transparent; border: none; border-radius: 24px; cursor: pointer; transition: all 0.25s ease; white-space: nowrap; min-width: 110px; }
+        .tab-btn.active { background: linear-gradient(90deg, #1a6eff, #0dcfcf); color: #fff; box-shadow: 0 0 18px rgba(0,200,255,0.25); }
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; max-width: 1860px; margin: 0 auto; }
+        .span-1 { grid-column: span 1; }
+        .span-2 { grid-column: span 2; }
+        .span-3 { grid-column: span 3; }
+        .span-4 { grid-column: span 4; }
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 20px 22px; box-shadow: var(--shadow); backdrop-filter: blur(12px);
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+            opacity: 0; transform: translateY(18px); animation: cardFadeIn 0.5s ease forwards;
+        }
+        .card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.18); box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 24px rgba(0,180,255,0.08); }
+        @keyframes cardFadeIn { to { opacity: 1; transform: translateY(0); } }
+        .card:nth-child(1){animation-delay:.05s} .card:nth-child(2){animation-delay:.10s} .card:nth-child(3){animation-delay:.15s}
+        .card:nth-child(4){animation-delay:.20s} .card:nth-child(5){animation-delay:.25s} .card:nth-child(6){animation-delay:.30s} .card:nth-child(7){animation-delay:.35s}
+        .card h2 { font-size: 0.95rem; font-weight: 600; color: var(--text-2); letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .card h2::before { content: ''; display: inline-block; width: 3px; height: 14px; border-radius: 2px; background: linear-gradient(var(--cyan), var(--blue)); }
+        .kpi-strip { grid-column: span 4; display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+        .kpi-box { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px 8px; text-align: center; transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s; opacity: 0; animation: cardFadeIn 0.5s ease forwards; }
+        .kpi-box:nth-child(1){animation-delay:.05s} .kpi-box:nth-child(2){animation-delay:.10s} .kpi-box:nth-child(3){animation-delay:.15s}
+        .kpi-box:nth-child(4){animation-delay:.20s} .kpi-box:nth-child(5){animation-delay:.25s} .kpi-box:nth-child(6){animation-delay:.30s} .kpi-box:nth-child(7){animation-delay:.35s}
+        .kpi-box:hover { border-color: var(--border-hover); background: rgba(255,255,255,0.07); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 16px rgba(0,180,255,0.06); }
+        .kpi-label { font-size: 0.75rem; color: var(--text-2); margin-bottom: 8px; }
+        .kpi-val { font-size: 1.7rem; font-weight: 900; color: var(--green); font-variant-numeric: tabular-nums; text-shadow: 0 0 12px rgba(0,230,118,0.35); }
+        .kpi-val.gold { color: var(--gold); text-shadow: 0 0 12px rgba(255,215,64,0.35); }
+        .kpi-val.red  { color: var(--red);  text-shadow: 0 0 12px rgba(255,82,82,0.3); }
+        .kpi-val.cyan { color: var(--cyan); text-shadow: 0 0 12px rgba(0,229,255,0.3); }
+        .kpi-val.blue { color: var(--blue); text-shadow: 0 0 12px rgba(79,172,254,0.3); }
+        .chart-wrap { position: relative; width: 100%; }
+        .chart-wrap canvas { max-width: 100%; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 14px; }
+        .cal-item { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px 10px; text-align: center; transition: all 0.25s; }
+        .cal-item.nearest { border-color: var(--gold); background: rgba(255,215,64,0.07); box-shadow: 0 0 20px rgba(255,215,64,0.12); }
+        .cal-item.passed { opacity: 0.35; }
+        .cal-badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 10px; margin-bottom: 8px; }
+        .badge-acls { background: rgba(79,172,254,0.18); color: var(--blue); border: 1px solid var(--blue); }
+        .badge-als  { background: rgba(0,230,118,0.18); color: var(--green); border: 1px solid var(--green); }
+        .badge-hot  { background: rgba(255,215,64,0.18); color: var(--gold); border: 1px solid var(--gold); }
+        .cal-date { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
+        .cal-countdown { font-size: 0.8rem; color: var(--cyan); font-weight: 600; }
+        .feedback-block { background: rgba(0,0,0,0.35); border-left: 3px solid var(--gold); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 16px 18px; font-style: italic; line-height: 1.7; font-size: 1rem; color: var(--text-1); }
+        .feedback-author { text-align: right; margin-top: 10px; font-size: 0.8rem; color: var(--cyan); font-style: normal; }
+        .keyword-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+        .keyword { background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.35); color: var(--text-1); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; }
+        .page-teacher { max-width: 1400px; margin: 0 auto; }
+        .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .stat-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 18px; text-align: center; }
+        .stat-val { font-size: 2.4rem; font-weight: 700; }
+        .stat-lbl { color: var(--text-2); font-size: 0.8rem; margin-top: 6px; }
+        .search-wrap { display: flex; gap: 12px; margin-bottom: 18px; }
+        #searchBox { flex: 1; padding: 12px 16px; font-size: 0.95rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgba(255,255,255,0.05); color: var(--text-1); outline: none; transition: border-color 0.2s; }
+        #searchBox:focus { border-color: var(--blue); }
+        #searchBox::placeholder { color: var(--text-3); }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { padding: 12px 16px; text-align: left; font-size: 0.8rem; color: var(--text-2); background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--border); white-space: nowrap; }
+        tbody td { padding: 14px 16px; font-size: 0.88rem; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; }
+        tbody tr:hover td { background: rgba(255,255,255,0.03); }
+        .exp-ok   { color: var(--green); }
+        .exp-warn { color: var(--gold); }
+        .exp-crit { color: var(--red); font-weight: 700; }
+        .exp-badge { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 8px; margin-left: 6px; font-weight: 700; }
+        .exp-badge.warn { background: rgba(255,215,64,0.2); color: var(--gold); }
+        .exp-badge.crit { background: rgba(255,82,82,0.2);  color: var(--red); }
+        .year-selector { grid-column: span 4; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .year-label { font-size: 0.8rem; color: var(--text-2); flex-shrink: 0; }
+        .year-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .yr-btn { padding: 6px 14px; font-size: 0.82rem; font-weight: 600; color: var(--text-2); background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 20px; cursor: pointer; transition: all 0.2s ease; }
+        .yr-btn:hover { border-color: var(--blue); color: var(--blue); }
+        .yr-btn.active { background: linear-gradient(90deg, rgba(26,110,255,0.25), rgba(13,207,207,0.25)); border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 12px rgba(0,229,255,0.15); }
+        .sat-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-2); }
+        .leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+        .sat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .sat-name { width: 62px; font-size: 0.82rem; color: var(--text-1); text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sat-bar-wrap { flex: 1; height: 26px; border-radius: 4px; overflow: hidden; display: flex; cursor: pointer; position: relative; }
+        .sat-seg { height: 100%; transition: filter 0.15s; }
+        .sat-bar-wrap:hover .sat-seg { filter: brightness(1.2); }
+        .sat-pct { width: 40px; font-size: 0.78rem; color: var(--text-2); flex-shrink: 0; text-align: right; line-height: 26px; }
+        .sat-tooltip { position: absolute; top: -46px; left: 50%; transform: translateX(-50%); background: rgba(5,12,28,0.97); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.75rem; color: var(--text-1); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 10; }
+        .sat-bar-wrap:hover .sat-tooltip { opacity: 1; }
+        .carousel-wrap { position: relative; overflow: hidden; }
+        .carousel-track { display: flex; transition: transform 0.4s ease; }
+        .carousel-slide { min-width: 100%; padding: 4px 2px; }
+        .fb-block { background: rgba(0,0,0,0.35); border-left: 3px solid var(--gold); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 14px 16px; font-style: italic; line-height: 1.7; font-size: 0.9rem; color: var(--text-1); min-height: 110px; }
+        .fb-author { text-align: right; margin-top: 10px; font-size: 0.75rem; color: var(--cyan); font-style: normal; }
+        .carousel-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+        .c-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); cursor: pointer; transition: background 0.2s; }
+        .c-dot.active { background: var(--gold); }
+        .video-wrap { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: var(--radius-sm); border: 1px solid var(--border); background: rgba(0,0,0,0.35); }
+        .video-wrap iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+        .resource-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .resource-btn { display: block; padding: 16px 18px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-1); text-decoration: none; font-weight: 600; transition: all 0.25s ease; }
+        .resource-btn:hover { background: rgba(0,229,255,0.12); border-color: var(--cyan); transform: translateY(-2px); }
+
+        /* ══ 2025 指引更新頁面 ══ */
+        .guide-container { max-width: 1400px; margin: 0 auto; }
+        .guide-tab-bar {
+            display: flex; gap: 6px; margin-bottom: 20px;
+            background: rgba(5,12,28,0.7); padding: 6px;
+            border-radius: 30px; border: 1px solid var(--border);
+            width: fit-content; flex-wrap: wrap;
+        }
+        .guide-tab {
+            padding: 9px 20px; font-size: 0.88rem; font-weight: 600;
+            color: var(--text-2); background: transparent;
+            border: none; border-radius: 24px; cursor: pointer;
+            transition: all 0.25s ease; white-space: nowrap;
+        }
+        .guide-tab.active { color: #fff; box-shadow: 0 0 18px rgba(0,200,255,0.2); }
+        .guide-tab.nrp.active  { background: linear-gradient(90deg, #006064, #00acc1); }
+        .guide-tab.peds.active { background: linear-gradient(90deg, #1565c0, #42a5f5); }
+        .guide-tab.adult.active{ background: linear-gradient(90deg, #b71c1c, #e53935); }
+        .guide-page { display: none; }
+        .guide-page.active { display: block; }
+        .guide-instructor-note {
+            background: rgba(0,229,255,0.05); border: 1px solid rgba(0,229,255,0.18);
+            border-radius: var(--radius-sm); padding: 10px 18px;
+            font-size: 0.8rem; color: var(--text-2); margin-bottom: 20px;
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .guide-hero {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 22px 26px; margin-bottom: 18px;
+            backdrop-filter: blur(12px); display: flex; align-items: flex-start; gap: 18px;
+            animation: cardFadeIn 0.4s ease forwards;
+        }
+        .guide-hero-icon { font-size: 2.4rem; flex-shrink: 0; margin-top: 4px; }
+        .guide-hero-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; }
+        .guide-hero-sub { color: var(--text-2); font-size: 0.85rem; line-height: 1.75; }
+        .guide-stat-pill { display: inline-block; padding: 4px 13px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; margin-top: 10px; margin-right: 8px; }
+        .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .guide-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px 22px;
+            backdrop-filter: blur(12px); margin-bottom: 16px;
+            animation: cardFadeIn 0.45s ease forwards;
+        }
+        .guide-card:hover { border-color: rgba(255,255,255,0.15); }
+        .guide-card h3 { font-size: 0.92rem; font-weight: 600; color: var(--text-2); letter-spacing: 0.4px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .guide-card h3::before { content: ''; display: inline-block; width: 3px; height: 13px; border-radius: 2px; background: linear-gradient(var(--cyan), var(--blue)); flex-shrink: 0; }
+        .msg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .msg-item { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 13px 15px; display: flex; gap: 12px; align-items: flex-start; }
+        .msg-num { font-size: 1.5rem; font-weight: 900; line-height: 1; opacity: 0.22; flex-shrink: 0; min-width: 26px; }
+        .msg-text { font-size: 0.84rem; line-height: 1.65; color: var(--text-1); }
+        .msg-text strong { color: var(--cyan); }
+        .algo-steps { display: flex; align-items: flex-start; gap: 0; margin: 14px 0 6px; overflow-x: auto; padding-bottom: 4px; }
+        .algo-step { flex: 1; min-width: 88px; text-align: center; padding: 12px 6px; position: relative; }
+        .algo-step + .algo-step::before { content: '→'; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); color: var(--text-3); font-size: 1.1rem; }
+        .algo-step-icon { font-size: 1.4rem; margin-bottom: 6px; }
+        .algo-step-name { font-size: 0.68rem; color: var(--text-2); font-weight: 600; line-height: 1.4; }
+        .threshold-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+        .threshold-box { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+        .threshold-val { font-size: 1.35rem; font-weight: 900; margin-bottom: 4px; }
+        .threshold-lbl { font-size: 0.72rem; color: var(--text-2); }
+        .key-shift-box { background: rgba(255,167,38,0.07); border: 1px solid rgba(255,167,38,0.3); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 12px; }
+        .key-shift-label { display: inline-block; background: #bf360c; color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 10px; border-radius: 8px; margin-bottom: 9px; letter-spacing: 1px; }
+        .change-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .change-elim { background: rgba(255,82,82,0.07); border: 1px solid rgba(255,82,82,0.28); border-radius: var(--radius-sm); padding: 14px; }
+        .change-elim-label { color: var(--red); font-size: 0.72rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+        .change-rec { background: rgba(0,230,118,0.07); border: 1px solid rgba(0,230,118,0.28); border-radius: var(--radius-sm); padding: 14px; }
+        .change-rec-label { color: var(--green); font-size: 0.72rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+        .change-text { font-size: 0.86rem; line-height: 1.65; color: var(--text-1); }
+        .hr-box { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 13px 16px; margin-bottom: 10px; }
+        .spo2-table { width: 100%; border-collapse: collapse; }
+        .spo2-table th { background: rgba(0,229,255,0.09); color: var(--cyan); font-size: 0.78rem; padding: 8px 14px; text-align: center; }
+        .spo2-table td { padding: 8px 14px; text-align: center; font-size: 0.84rem; border-bottom: 1px solid var(--border); }
+        .info-pill { font-size: 0.78rem; display: inline-block; padding: 3px 11px; border-radius: 20px; margin-right: 6px; margin-top: 4px; font-weight: 600; }
+
+        /* ══ RWD ══ */
+        @media (max-width: 1200px) {
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .kpi-strip { grid-column: span 2; grid-template-columns: repeat(4, 1fr); }
+            .year-selector { grid-column: span 2; }
+            .span-2,.span-3,.span-4 { grid-column: span 2; }
+            .calendar-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .header { letter-spacing: 1px; padding-bottom: 16px; }
+            .tab-btn { font-size: 0.75rem; padding: 8px 8px; }
+            .grid-4 { grid-template-columns: 1fr; gap: 10px; }
+            .kpi-strip { grid-column: span 1; grid-template-columns: repeat(2, 1fr); }
+            .year-selector { grid-column: span 1; }
+            .span-1,.span-2,.span-3,.span-4 { grid-column: span 1; }
+            .calendar-grid { grid-template-columns: repeat(2, 1fr); }
+            .kpi-val { font-size: 1.4rem; }
+            .chart-wrap { max-height: 260px; }
+            table { font-size: 0.8rem; }
+            thead th, tbody td { padding: 10px 10px; }
+            .resource-grid { grid-template-columns: 1fr; }
+            .msg-grid { grid-template-columns: 1fr; }
+            .guide-grid { grid-template-columns: 1fr; }
+            .change-grid { grid-template-columns: 1fr; }
+            .threshold-row { grid-template-columns: 1fr 1fr; }
+            .guide-hero { flex-direction: column; gap: 10px; }
+            .guide-tab { font-size: 0.75rem; padding: 8px 12px; }
+        }
+        @media (max-width: 420px) {
+            .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+            .calendar-grid { grid-template-columns: 1fr 1fr; }
+            .tab-bar { gap: 4px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">正在連線奇美教育資料庫…</div>
+</div>
+
+<header>
+    <div class="header">奇美醫院 ACLS / ALS 數位管理大平台</div>
+    <div class="header-sub">Chi-Mei Medical Center · Advanced Life Support Management System</div>
+</header>
+
+<div class="tab-bar">
+    <button id="btn-tab1" class="tab-btn active" onclick="switchTab('page-dashboard')">📊 大數據戰情室</button>
+    <button id="btn-tab2" class="tab-btn" onclick="switchTab('page-teacher')">✏️ 教師效期管理</button>
+    <button id="btn-tab3" class="tab-btn" onclick="switchTab('page-resource')">🎬 教學資源</button>
+</div>
+
+<!-- 面板一：大數據戰情室 -->
+<div id="page-dashboard" class="page-section active">
+    <div class="grid-4">
+        <div class="year-selector">
+            <span class="year-label">查看年度：</span>
+            <div class="year-btns" id="year-btns"></div>
+        </div>
+        <div class="kpi-strip">
+            <div class="kpi-box"><div class="kpi-label" id="lbl-courses">課程場次</div><div class="kpi-val blue" id="kpi-courses">—</div></div>
+            <div class="kpi-box"><div class="kpi-label" id="lbl-enrolled">報名人數</div><div class="kpi-val" id="kpi-enrolled">—</div></div>
+            <div class="kpi-box"><div class="kpi-label" id="lbl-attended">實到人數</div><div class="kpi-val" id="kpi-attended">—</div></div>
+            <div class="kpi-box"><div class="kpi-label" id="lbl-passed">通過人數</div><div class="kpi-val" id="kpi-passed">—</div></div>
+            <div class="kpi-box"><div class="kpi-label">通過率</div><div class="kpi-val gold" id="kpi-passrate">—</div></div>
+            <div class="kpi-box"><div class="kpi-label">缺席率</div><div class="kpi-val red" id="kpi-absentrate">—</div></div>
+            <div class="kpi-box"><div class="kpi-label">問卷回收率</div><div class="kpi-val cyan" id="kpi-survey">—</div></div>
+        </div>
+        <div class="card span-2">
+            <h2>年度趨勢分析 (2017–2026)</h2>
+            <p style="font-size:0.75rem;color:var(--text-2);margin-bottom:12px;">※ 點選上方年度按鈕可 highlight 特定年份</p>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="card span-1"><h2>學員職類分布</h2><div class="chart-wrap"><canvas id="structureChart"></canvas></div></div>
+        <div class="card span-1">
+            <h2>課程滿意度雷達圖</h2>
+            <div style="text-align:center;margin-bottom:10px;">
+                <span style="font-size:0.8rem;color:var(--text-2);">平均滿意度</span>
+                <span style="font-size:1.6rem;font-weight:900;color:var(--gold);margin-left:8px;" id="avg-satisfaction">—</span>
+                <span style="font-size:0.8rem;color:var(--text-2);"> / 5.0</span>
+            </div>
+            <div class="chart-wrap"><canvas id="satisfactionRadar"></canvas></div>
+        </div>
+        <div class="card span-4">
+            <h2>2026 年度 ACLS / ALS 核心課表與倒數</h2>
+            <div class="calendar-grid" id="calendar-container"></div>
+        </div>
+        <div class="card span-3">
+            <h2>授課教師教授內容滿意度評分（各講師）</h2>
+            <div class="sat-legend">
+                <span class="leg-item"><span class="leg-dot" style="background:#e64a19"></span>非常滿意</span>
+                <span class="leg-item"><span class="leg-dot" style="background:#ff8a65"></span>滿意</span>
+                <span class="leg-item"><span class="leg-dot" style="background:#78909c"></span>普通</span>
+                <span class="leg-item"><span class="leg-dot" style="background:#5c6bc0"></span>不滿意</span>
+                <span class="leg-item"><span class="leg-dot" style="background:#283593"></span>非常不滿意</span>
+            </div>
+            <div id="instructor-sat-chart"></div>
+        </div>
+        <div class="card span-1">
+            <h2>學員真實回饋摘錄</h2>
+            <div class="carousel-wrap">
+                <div class="carousel-track" id="carousel-track"></div>
+                <div class="carousel-dots" id="carousel-dots"></div>
+            </div>
+            <div class="keyword-wrap" id="keyword-container" style="margin-top:18px;">
+                <div class="keyword">團隊合作</div><div class="keyword">操作流暢</div>
+                <div class="keyword">情境模擬</div><div class="keyword">急救應變</div><div class="keyword">數據反饋</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 面板二：教師效期管理 -->
+<div id="page-teacher" class="page-section">
+    <div class="page-teacher">
+        <div class="stat-row">
+            <div class="stat-box"><div class="stat-val" id="count-total">—</div><div class="stat-lbl">總講師人數</div></div>
+            <div class="stat-box"><div class="stat-val" style="color:var(--red)" id="count-expiring90">—</div><div class="stat-lbl">90 天內到期</div></div>
+            <div class="stat-box"><div class="stat-val" style="color:var(--gold)" id="count-expiring180">—</div><div class="stat-lbl">91–180 天內到期</div></div>
+            <div class="stat-box"><div class="stat-val" style="color:var(--green)" id="count-valid">—</div><div class="stat-lbl">效期充足 (&gt;180 天)</div></div>
+        </div>
+        <div class="card" style="margin-bottom:20px;">
+            <h2>講師積分排名 Top 10</h2>
+            <div class="chart-wrap" style="height:380px;"><canvas id="hoursBarChart"></canvas></div>
+        </div>
+        <div class="card">
+            <h2>講師資歷與效期資料庫</h2>
+            <div class="search-wrap"><input type="text" id="searchBox" placeholder="🔍 搜尋姓名或職務…"></div>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr><th>姓名</th><th>職務</th><th>教學積分</th><th>證書效期（民國）</th><th>效期狀態</th></tr></thead>
+                    <tbody id="teacher-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text-2);">資料加載中…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 面板三：ACLS 教學資源 -->
+<div id="page-resource" class="page-section">
+    <div class="grid-4">
+        <div class="card span-4">
+            <h2>ACLS 輔助教學資源專區</h2>
+            <p style="color:var(--text-2);line-height:1.8;font-size:0.9rem;">提供學員課前預習、課後複習與臨床急救流程參考使用。</p>
+        </div>
+        <div class="card span-2">
+            <h2>院內急救流程影片</h2>
+            <div class="video-wrap"><iframe src="https://www.youtube.com/embed/ZygaDHVcplQ" title="院內急救流程影片" allowfullscreen></iframe></div>
+        </div>
+        <div class="card span-2">
+            <h2>2025 美國心臟醫學會 AHA 指引更新</h2>
+            <div class="video-wrap"><iframe src="https://www.youtube.com/embed/OfuGRccwIo4" title="2025 AHA 指引更新" allowfullscreen></iframe></div>
+        </div>
+        <div class="card span-4">
+            <h2>課程輔助教材</h2>
+            <div class="resource-grid">
+                <a class="resource-btn" href="#" target="_blank">📘 ACLS 課前講義</a>
+                <a class="resource-btn" href="#" target="_blank">🫀 心律判讀重點</a>
+                <a class="resource-btn" href="#" target="_blank">⚡ AED / 電擊流程</a>
+                <a class="resource-btn" href="#" target="_blank">💉 急救用藥速查表</a>
+                <a class="resource-btn" href="#" target="_blank">🏥 院內急救流程</a>
+                <a class="resource-btn" href="王晨旭醫師-2025ACLSupdateCourse-ACLS_PALS-20260321__1_.pdf" target="_blank" download>📎 2025 AHA ACLS Update 講義（王晨旭醫師）</a>
+            </div>
+        </div>
+
+        <!-- 2025 指引更新區塊 -->
+        <div class="card span-4" style="margin-top:4px;">
+            <h2>2025 AHA / AAP 指引更新重點（朱昌宏醫師）</h2>
+            <p style="color:var(--text-2);font-size:0.85rem;margin-top:-8px;margin-bottom:0">課程：2025 ACLS Update Course ｜ 資料來源：AHA / AAP 2025 Guidelines</p>
+        </div>
+        <div class="span-4">
+<div class="guide-container">
+
+        <!-- 來源標注 -->
+        <div class="guide-instructor-note">
+            📌 <strong style="color:var(--text-1)">講師：朱昌宏醫師</strong>
+            ｜ 課程：2025 ACLS Update Course
+            ｜ 資料來源：AHA / AAP 2025 Guidelines
+            ｜ 適用：院內在職訓練 / PGY 課程參考
+        </div>
+
+        <!-- Sub-tabs -->
+        <div class="guide-tab-bar">
+            <button class="guide-tab nrp active" data-guide="nrp" onclick="switchGuide('nrp')">👶 NRP 新生兒急救</button>
+            <button class="guide-tab peds" data-guide="peds" onclick="switchGuide('peds')">🧒 兒童 BLS</button>
+            <button class="guide-tab adult" data-guide="adult" onclick="switchGuide('adult')">🫀 成人 BLS</button>
+        </div>
+
+        <!-- ── NRP 新生兒急救 ── -->
+        <div id="guide-nrp" class="guide-page active">
+
+            <div class="guide-hero" style="border-left:4px solid var(--cyan)">
+                <div class="guide-hero-icon">👶</div>
+                <div>
+                    <div class="guide-hero-title" style="color:var(--cyan)">2025 新生兒復甦術（NRP）指引更新</div>
+                    <div class="guide-hero-sub">AHA 與 AAP 聯合發布，提供新生兒出生後黃金一分鐘標準化評估與急救流程，新增「新生兒照護鏈」整體框架。</div>
+                    <div>
+                        <span class="guide-stat-pill" style="background:rgba(0,229,255,0.1);border:1px solid var(--cyan);color:var(--cyan)">5–10% 新生兒需協助呼吸</span>
+                        <span class="guide-stat-pill" style="background:rgba(0,230,118,0.1);border:1px solid var(--green);color:var(--green)">AHA + AAP 2025</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 照護鏈 -->
+            <div class="guide-card">
+                <h3>新生兒照護鏈（Newborn Chain of Care）— 全新框架</h3>
+                <div class="algo-steps">
+                    <div class="algo-step"><div class="algo-step-icon">🛡️</div><div class="algo-step-name">Prevention<br>預防</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">🔔</div><div class="algo-step-name">Recognition &amp;<br>Activation<br>辨識與啟動</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">👐</div><div class="algo-step-name">Initial Steps<br>初步處置</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">🫁</div><div class="algo-step-name">Ventilation<br>通氣支持</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">💗</div><div class="algo-step-name">Advanced<br>Resuscitation<br>進階急救</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">🩺</div><div class="algo-step-name">Postnatal Care<br>出生後照護</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">👨‍👩‍👧</div><div class="algo-step-name">Recovery<br>復原</div></div>
+                </div>
+                <p style="font-size:0.78rem;color:var(--text-2);margin-top:6px;">2025 指引引入此框架，強調從產前照護延伸至長期復原，確保母嬰短期與長期健康。</p>
+            </div>
+
+            <!-- 10 大要點 -->
+            <div class="guide-card">
+                <h3>10 大核心要點（Essential Take-Home Messages）</h3>
+                <div class="msg-grid">
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">1</div><div class="msg-text">新生兒<strong>照護鏈</strong>從產前照護延伸至出生後復原，確保母嬰長期健康。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">2</div><div class="msg-text">急救需事前<strong>預判</strong>與<strong>團隊準備</strong>（每次分娩皆須有專責新生兒急救人員在場）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">3</div><div class="msg-text">大多數新生兒<strong>不需急救</strong>，應給予延遲臍帶夾（DCC ≥60 秒）與<strong>親膚接觸</strong>。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">4</div><div class="msg-text"><strong>有效通氣</strong>（以心率上升為指標）是最優先介入措施。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">5</div><div class="msg-text">若心率未上升，執行<strong>通氣矯正步驟</strong>，包含替代氣道（喉頭罩 / 氣管插管）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">6</div><div class="msg-text"><strong>體溫監測</strong>至關重要，須避免低溫與高溫（目標 36.5–37.5°C）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">7</div><div class="msg-text"><strong>血氧監測儀</strong>（右手 / 腕部，導管前）引導氧氣治療，達到目標 SpO₂。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">8</div><div class="msg-text">有效通氣矯正後心率仍 &lt;60/min，開始<strong>胸外按壓</strong>（優先建立人工氣道）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">9</div><div class="msg-text">按壓後心率仍 &lt;60/min，給予<strong>腎上腺素</strong>，優先靜脈路徑（UVC / IO）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--cyan)">10</div><div class="msg-text">有效急救 <strong>20 分鐘</strong>後仍無心率，可與家屬討論<strong>照護方向調整</strong>。</div></div>
+                </div>
+            </div>
+
+            <!-- 心率閾值 + SpO2 並排 -->
+            <div class="guide-grid">
+                <div class="guide-card" style="margin-bottom:0">
+                    <h3>關鍵心率閾值與處置流程</h3>
+                    <div class="hr-box" style="border:1px solid rgba(255,152,0,0.3);background:rgba(255,152,0,0.07);">
+                        <div style="color:#ff9800;font-size:0.72rem;font-weight:800;margin-bottom:5px;">HR &lt; 100 次/分（呼吸暫停或喘息）</div>
+                        <div style="font-size:0.86rem;">→ 立即 <strong style="color:#fff">PPV 正壓通氣</strong> + SpO₂監測 + 心電監測</div>
+                    </div>
+                    <div class="hr-box" style="border:1px solid rgba(255,87,34,0.3);background:rgba(255,87,34,0.07);">
+                        <div style="color:#ff5722;font-size:0.72rem;font-weight:800;margin-bottom:5px;">HR &lt; 60 次/分（有效通氣矯正後）</div>
+                        <div style="font-size:0.86rem;">→ <strong style="color:#fff">胸外按壓 3:1</strong> + 插管 + 100% O₂ + UVC/IO</div>
+                    </div>
+                    <div class="hr-box" style="border:1px solid rgba(255,82,82,0.3);background:rgba(255,82,82,0.07);">
+                        <div style="color:var(--red);font-size:0.72rem;font-weight:800;margin-bottom:5px;">HR 仍 &lt; 60 次/分（按壓 60 秒後）</div>
+                        <div style="font-size:0.86rem;">→ <strong style="color:#fff">腎上腺素</strong> IV/IO 0.01–0.03 mg/kg，每 3–5 分鐘可重複</div>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-2);margin-top:10px;">
+                        ET 路徑（靜脈建立前暫用）：劑量加大至 0.05–0.1 mg/kg
+                    </div>
+                </div>
+
+                <div class="guide-card" style="margin-bottom:0">
+                    <h3>目標血氧飽和度（導管前 SpO₂）</h3>
+                    <table class="spo2-table">
+                        <thead><tr><th>出生後時間</th><th>目標 SpO₂</th></tr></thead>
+                        <tbody>
+                            <tr><td>2 分鐘</td><td style="color:var(--cyan);font-weight:700">65–70%</td></tr>
+                            <tr><td>3 分鐘</td><td style="color:var(--cyan);font-weight:700">70–75%</td></tr>
+                            <tr><td>4 分鐘</td><td style="color:var(--cyan);font-weight:700">75–80%</td></tr>
+                            <tr><td>5 分鐘</td><td style="color:var(--cyan);font-weight:700">80–85%</td></tr>
+                            <tr><td>10 分鐘</td><td style="color:var(--cyan);font-weight:700">85–95%</td></tr>
+                        </tbody>
+                    </table>
+                    <div style="margin-top:14px;font-size:0.82rem;line-height:1.8;color:var(--text-2);">
+                        <strong style="color:var(--text-1)">初始氧濃度建議：</strong><br>
+                        ≥35 週 GA：21%（室內空氣）<br>
+                        32–34⁺⁶∕⁷ 週：21–30% O₂<br>
+                        &lt;32 週：30–100% O₂<br>
+                        <span style="color:var(--gold)">→ 依目標 SpO₂ 持續滴定氧濃度</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2025 重要更新 -->
+            <div class="guide-card" style="margin-top:16px">
+                <h3>2025 重要臨床更新亮點</h3>
+                <div class="guide-grid" style="margin-bottom:0">
+                    <div class="key-shift-box">
+                        <div class="key-shift-label">臍帶管理 DCC</div>
+                        <div style="font-size:0.86rem;line-height:1.75">
+                            <strong style="color:var(--text-1)">足月兒（≥35週）</strong>：DCC ≥60 秒有益；非活力嬰兒可考慮臍帶擠奶。<br>
+                            <strong style="color:var(--text-1)">早產兒（&lt;37週）</strong>：DCC ≥60 秒為建議。<br>
+                            <span style="color:var(--red)">⚠️ &lt;28 週禁止臍帶擠奶</span>（腦室出血風險增加）
+                        </div>
+                    </div>
+                    <div class="key-shift-box">
+                        <div class="key-shift-label">胸外按壓技術</div>
+                        <div style="font-size:0.86rem;line-height:1.75">
+                            建議手法：<strong style="color:var(--text-1)">雙拇指環抱法</strong>（2 thumb-encircling）<br>
+                            比例：<strong style="color:var(--gold)">3:1</strong>（90 次按壓 + 30 次通氣/分）<br>
+                            深度：胸前後徑的 <strong style="color:var(--gold)">1/3</strong>，位置：胸骨下 1/3
+                        </div>
+                    </div>
+                    <div class="key-shift-box">
+                        <div class="key-shift-label">治療性低溫</div>
+                        <div style="font-size:0.86rem;line-height:1.75">
+                            適應症：≥36 週 GA + 中重度缺氧缺血性腦病（HIE）<br>
+                            需在具多學科照護能力的機構，依明確協議執行。
+                        </div>
+                    </div>
+                    <div class="key-shift-box">
+                        <div class="key-shift-label">終止急救判斷</div>
+                        <div style="font-size:0.86rem;line-height:1.75">
+                            有效急救 <strong style="color:var(--red)">20 分鐘後無心率</strong>，可與團隊及家屬討論停止急救。<br>
+                            非啟動與中止生命維持處置在倫理上等同，重點轉向安寧照護。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /guide-nrp -->
+
+        <!-- ── 兒童 BLS ── -->
+        <div id="guide-peds" class="guide-page">
+
+            <div class="guide-hero" style="border-left:4px solid var(--blue)">
+                <div class="guide-hero-icon">🧒</div>
+                <div>
+                    <div class="guide-hero-title" style="color:var(--blue)">2025 兒童基礎生命救術（Pediatric BLS）指引更新</div>
+                    <div class="guide-hero-sub">AHA + AAP 2025 兒科急救指引，適用對象：嬰兒至青春期。出現青春期徵象後視為成人處置。</div>
+                    <div>
+                        <span class="guide-stat-pill" style="background:rgba(79,172,254,0.1);border:1px solid var(--blue);color:var(--blue)">嬰兒 OHCA 存活出院率 6.6%</span>
+                        <span class="guide-stat-pill" style="background:rgba(0,230,118,0.1);border:1px solid var(--green);color:var(--green)">兒童 IHCA 存活率 44.2%（2022）</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 存活鏈 -->
+            <div class="guide-card">
+                <h3>兒科存活鏈（Pediatric Chain of Survival）</h3>
+                <div class="algo-steps">
+                    <div class="algo-step"><div class="algo-step-icon">📱</div><div class="algo-step-name">辨識與緊急<br>啟動</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">💗</div><div class="algo-step-name">高品質<br>CPR</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">⚡</div><div class="algo-step-name">電擊<br>去顫</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">💉</div><div class="algo-step-name">進階<br>急救</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">🏥</div><div class="algo-step-name">心跳停止後<br>照護</div></div>
+                    <div class="algo-step"><div class="algo-step-icon">👨‍👩‍👧</div><div class="algo-step-name">復原與<br>長期照護</div></div>
+                </div>
+            </div>
+
+            <!-- 10 大要點 -->
+            <div class="guide-card">
+                <h3>10 大核心要點（Top 10 Take-Home Messages）</h3>
+                <div class="msg-grid">
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">1</div><div class="msg-text"><strong>呼吸為首要</strong>——兒童心跳停止多源自呼吸衰竭，優先確保通氣與氧合。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">2</div><div class="msg-text"><strong>人工呼吸更重要</strong>——院外心停（OHCA）按壓<em>加上</em>人工呼吸可顯著改善存活率。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">3</div><div class="msg-text"><strong>通氣頻率</strong>——救援呼吸或進階氣道後給予 <strong style="color:var(--cyan)">20–30 次/分</strong>。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">4</div><div class="msg-text"><strong>嬰兒 FBAO</strong>：5 次背部拍擊 + <strong>5 次胸部衝擊</strong>循環。<span style="color:var(--red)">禁用腹部衝擊。</span></div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">5</div><div class="msg-text"><strong>兒童 FBAO</strong>：5 次背部拍擊 + <strong>5 次腹部衝擊</strong>（哈姆立克）循環。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">6</div><div class="msg-text"><strong>立即辨識行動</strong>——無反應或呼吸異常，立即啟動 CPR，不要等待確認。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">7</div><div class="msg-text"><strong>CPR 是基礎</strong>——注重頻率、深度、回彈、最少中斷與正確通氣。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">8</div><div class="msg-text" style="border-left:2px solid var(--gold);padding-left:8px"><strong style="color:var(--gold)">2025 KEY SHIFT</strong>：嬰兒按壓改用<strong>單手掌根（1-hand）</strong>或<strong>雙拇指（2-thumb）</strong>，<span style="color:var(--red)">2 指法正式廢除</span>。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">9</div><div class="msg-text"><strong>盡早使用 AED</strong>——優先使用具兒科能量衰減器（pediatric attenuator）的 AED。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--blue)">10</div><div class="msg-text"><strong>智慧電擊</strong>——VF/pVT 盡速去顫，最小化電擊前後中斷（peri-shock pause）。</div></div>
+                </div>
+            </div>
+
+            <!-- 2025 重大變革 -->
+            <div class="guide-grid">
+                <div class="guide-card" style="margin-bottom:0">
+                    <h3>🔄 嬰兒按壓手法重大更新（2025 KEY SHIFT）</h3>
+                    <div class="change-grid">
+                        <div class="change-elim">
+                            <div class="change-elim-label">❌ 已廢除</div>
+                            <div class="change-text"><strong>2 指法</strong><br>沿胸骨以 2 指按壓<br><br><span style="color:var(--text-2);font-size:0.82rem">原因：無法達到足夠按壓深度，導致急救效果不足。</span></div>
+                        </div>
+                        <div class="change-rec">
+                            <div class="change-rec-label">✅ 建議使用</div>
+                            <div class="change-text">
+                                <strong>雙拇指環抱法</strong>（2-thumb）<br>
+                                <span style="color:var(--text-2);font-size:0.82rem">雙人施救優先選用</span><br><br>
+                                <strong>單手掌根法</strong>（1-hand）<br>
+                                <span style="color:var(--text-2);font-size:0.82rem">單人施救使用</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-2);background:rgba(79,172,254,0.05);border:1px solid rgba(79,172,254,0.2);border-radius:6px;padding:10px;margin-top:4px;">
+                        按壓深度：約 4 cm（嬰兒），位置：胸骨下半段，允許胸廓完全回彈。
+                    </div>
+                </div>
+
+                <div class="guide-card" style="margin-bottom:0">
+                    <h3>🔄 異物梗塞（FBAO）管理</h3>
+                    <div style="background:rgba(79,172,254,0.07);border:1px solid rgba(79,172,254,0.28);border-radius:8px;padding:12px;margin-bottom:10px;">
+                        <div style="color:var(--blue);font-size:0.72rem;font-weight:800;margin-bottom:5px;">嬰兒（&lt;1 歲）</div>
+                        <div style="font-size:0.87rem;">5次背部拍擊 ↔ <strong style="color:var(--gold)">5次胸部衝擊</strong>（反覆循環）<br>
+                        <span style="color:var(--red);font-size:0.8rem">⚠️ 腹部衝擊有臟器損傷風險，禁止使用</span></div>
+                    </div>
+                    <div style="background:rgba(0,230,118,0.07);border:1px solid rgba(0,230,118,0.28);border-radius:8px;padding:12px;margin-bottom:10px;">
+                        <div style="color:var(--green);font-size:0.72rem;font-weight:800;margin-bottom:5px;">兒童（&gt;1 歲至青春期）</div>
+                        <div style="font-size:0.87rem;">5次背部拍擊 ↔ <strong style="color:var(--gold)">5次腹部衝擊</strong>（哈姆立克，反覆循環）</div>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-2);background:rgba(255,82,82,0.06);border:1px solid rgba(255,82,82,0.22);border-radius:6px;padding:10px;">
+                        ⚠️ 昏迷後立即 CPR（無需確認脈搏），每次開放氣道前檢視口腔，<strong style="color:var(--red)">禁止盲目手指清掃</strong>（Class 3：Harm）。
+                    </div>
+                </div>
+            </div>
+
+            <!-- CPR 質量參數 -->
+            <div class="guide-card" style="margin-top:16px">
+                <h3>高品質 CPR 參數（嬰兒至兒童）</h3>
+                <div class="threshold-row" style="grid-template-columns:repeat(4,1fr)">
+                    <div class="threshold-box">
+                        <div class="threshold-val" style="color:var(--blue)">100–120</div>
+                        <div class="threshold-lbl">按壓頻率（次/分）</div>
+                    </div>
+                    <div class="threshold-box">
+                        <div class="threshold-val" style="color:var(--cyan);font-size:1.1rem">≈ 4 cm<br>≈ 5 cm</div>
+                        <div class="threshold-lbl">按壓深度<br>嬰兒 / 兒童</div>
+                    </div>
+                    <div class="threshold-box">
+                        <div class="threshold-val" style="color:var(--green)">&lt;10秒</div>
+                        <div class="threshold-lbl">最大按壓中斷</div>
+                    </div>
+                    <div class="threshold-box">
+                        <div class="threshold-val" style="color:var(--gold);font-size:1.1rem">15:2<br>30:2</div>
+                        <div class="threshold-lbl">壓：氣比<br>雙人 / 單人</div>
+                    </div>
+                </div>
+                <p style="font-size:0.82rem;color:var(--text-2);">兒童心跳停止多因呼吸衰竭或休克，<strong style="color:var(--text-1)">傳統 CPR（含通氣）提供最佳預後</strong>。</p>
+            </div>
+        </div><!-- /guide-peds -->
+
+        <!-- ── 成人 BLS ── -->
+        <div id="guide-adult" class="guide-page">
+
+            <div class="guide-hero" style="border-left:4px solid var(--red)">
+                <div class="guide-hero-icon">🫀</div>
+                <div>
+                    <div class="guide-hero-title" style="color:var(--red)">2025 成人基礎生命救術（Adult BLS）指引更新</div>
+                    <div class="guide-hero-sub">AHA 2025 年最新成人急救指引，以循證策略改善心跳停止存活率，呼應 AHA 2030 年影響目標。</div>
+                    <div>
+                        <span class="guide-stat-pill" style="background:rgba(255,82,82,0.1);border:1px solid var(--red);color:var(--red)">院外心停 356,000 例/年（美國）</span>
+                        <span class="guide-stat-pill" style="background:rgba(255,215,64,0.1);border:1px solid var(--gold);color:var(--gold)">旁觀者 CPR 施行率僅 47.7%</span>
+                        <span class="guide-stat-pill" style="background:rgba(0,230,118,0.1);border:1px solid var(--green);color:var(--green)">院內存活出院率 23.6%（2023）</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 10 大要點 -->
+            <div class="guide-card">
+                <h3>10 大核心要點（Top 10 Take-Home Messages）</h3>
+                <div class="msg-grid">
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">1</div><div class="msg-text">若可安全有效執行 CPR，<strong>在發現患者的地點進行急救</strong>，不需移動患者。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">2</div><div class="msg-text">單人施救：<strong>先啟動緊急系統</strong>，再立即開始 CPR（無需先給予呼吸）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">3</div><div class="msg-text">按壓時患者軀幹應在施救者<strong>膝蓋同高</strong>（跪姿提升按壓深度）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">4</div><div class="msg-text">醫療人員：對<strong>所有成人患者</strong>執行按壓加通氣（傳統 CPR）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">5</div><div class="msg-text">給予<strong>足夠潮氣量</strong>使胸廓可見起伏，同時避免過度通氣與通氣不足。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">6</div><div class="msg-text"><strong>機械 CPR 裝置</strong>不建議常規使用。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">7</div><div class="msg-text">有脈搏但無呼吸：每 <strong>6 秒 1 次人工呼吸</strong>（10 次/分），每 2 分鐘確認脈搏。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">8</div><div class="msg-text">肥胖患者使用<strong>相同 CPR 技術</strong>（手掌位置、深度目標不變）。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">9</div><div class="msg-text">嚴重 FBAO：反覆執行 <strong>5 次背部拍擊 + 5 次腹部衝擊</strong>循環直至排出。</div></div>
+                    <div class="msg-item"><div class="msg-num" style="color:var(--red)">10</div><div class="msg-text">施救者使用<strong>個人防護裝備（PPE）</strong>施行 CPR 是合理且被鼓勵的。</div></div>
+                </div>
+            </div>
+
+            <!-- CPR 質量 + 通氣/電擊 -->
+            <div class="guide-grid">
+                <div class="guide-card" style="margin-bottom:0">
+                    <h3>高品質 CPR 關鍵參數</h3>
+                    <div class="threshold-row" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+                        <div class="threshold-box">
+                            <div class="threshold-val" style="color:var(--red)">100–120</div>
+                            <div class="threshold-lbl">按壓頻率（次/分）</div>
+                        </div>
+                        <div class="threshold-box">
+                            <div class="threshold-val" style="color:var(--gold)">≥5 cm<br>&lt;6 cm</div>
+                            <div class="threshold-lbl">按壓深度</div>
+                        </div>
+                    </div>
+                    <div style="background:rgba(255,82,82,0.07);border:1px solid rgba(255,82,82,0.25);border-radius:8px;padding:14px;margin-bottom:12px">
+                        <div style="color:var(--red);font-size:0.72rem;font-weight:800;margin-bottom:4px">胸部按壓分數（CCF）目標</div>
+                        <div style="font-size:1.6rem;font-weight:900;color:var(--red)">≥ 60%</div>
+                        <div style="font-size:0.8rem;color:var(--text-2)">高效能團隊可達 &gt;80%。按壓中斷限制 &lt;10 秒。</div>
+                    </div>
+                    <div style="font-size:0.85rem;line-height:1.9;color:var(--text-1)">
+                        ✅ 電擊後<strong>立即恢復 CPR</strong>，勿暫停等待心律確認<br>
+                        ✅ 允許胸廓<strong>完全回彈</strong>（勿倚靠胸壁）<br>
+                        ✅ 雙人每 <strong>2 分鐘</strong>換手（深度在 90–120 秒後下降）<br>
+                        ✅ 聽覺回饋裝置可將存活率提升 <strong style="color:var(--gold)">25.6%</strong>（IHCA 隨機試驗）
+                    </div>
+                </div>
+
+                <div class="guide-card" style="margin-bottom:0">
+                    <h3>通氣 / 電擊 / AHA 2030 目標</h3>
+                    <div style="background:rgba(79,172,254,0.07);border:1px solid rgba(79,172,254,0.25);border-radius:8px;padding:14px;margin-bottom:12px">
+                        <div style="color:var(--blue);font-size:0.72rem;font-weight:800;margin-bottom:4px">CPR 比例（進階氣道前）</div>
+                        <div style="font-size:1.8rem;font-weight:900;color:var(--blue)">30:2</div>
+                        <div style="font-size:0.82rem;color:var(--text-2)">30 次按壓 + 2 次通氣，每次呼吸 1 秒，觀察胸廓起伏。</div>
+                    </div>
+                    <div style="font-size:0.85rem;line-height:1.8;color:var(--text-1);margin-bottom:14px">
+                        <strong>電極片放置</strong>：前側位（anterolateral）或前後位（anteroposterior）均可。<br>
+                        女性患者：可調整胸罩位置而非移除，減少延誤。<br>
+                        <span style="color:var(--gold)">AED 到達後立即使用，CPR 執行至去顫器就緒。</span>
+                    </div>
+                    <div style="background:rgba(255,215,64,0.07);border:1px solid rgba(255,215,64,0.25);border-radius:8px;padding:14px">
+                        <div style="color:var(--gold);font-size:0.72rem;font-weight:800;margin-bottom:8px">⚡ AHA 2030 年影響目標</div>
+                        <div style="display:flex;gap:20px;font-size:0.88rem">
+                            <div>旁觀者 CPR &gt;<strong style="color:var(--gold);font-size:1.2rem"> 50%</strong></div>
+                            <div>EMS 前 AED &gt;<strong style="color:var(--gold);font-size:1.2rem"> 20%</strong></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 成人 FBAO -->
+            <div class="guide-card" style="margin-top:16px">
+                <h3>成人異物梗塞（FBAO）完整處置流程</h3>
+                <div class="guide-grid" style="margin-bottom:0">
+                    <div>
+                        <div style="font-size:0.82rem;font-weight:700;color:var(--green);margin-bottom:10px">意識清醒</div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:14px">
+                            <div style="font-size:0.88rem;line-height:1.9">
+                                1. 確認嚴重梗塞徵兆（無法說話、紫紺、意識改變、呼吸暫停）<br>
+                                2. 啟動緊急系統（119）<br>
+                                3. 反覆執行：<strong style="color:var(--gold)">5 次背部拍擊</strong> → <strong style="color:var(--gold)">5 次腹部衝擊</strong><br>
+                                4. 直到異物排出或患者失去意識<br>
+                                <br>
+                                <span style="color:var(--text-2)">⚠️ <strong style="color:var(--text-1)">孕婦 / 無法環抱腹部者</strong>：改用 5 次胸部衝擊</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.82rem;font-weight:700;color:var(--red);margin-bottom:10px">失去意識</div>
+                        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:14px">
+                            <div style="font-size:0.88rem;line-height:1.9">
+                                1. 立即開始 <strong style="color:var(--red)">CPR</strong>（從胸外按壓開始）<br>
+                                2. <strong>不需確認脈搏</strong>（直接 CPR）<br>
+                                3. 每次開放氣道給予呼吸前，視覺確認口腔<br>
+                                4. 可見異物 → 移除<br>
+                                5. <strong style="color:var(--red)">禁止盲目手指清掃</strong>（Class 3：Harm，可能推入更深）
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /guide-adult -->
+
+    </div><!-- /guide-container -->
+        </div>
+    </div>
+</div>
+
+<canvas id="starfield"></canvas>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycby8QsW6rmssYUTO_4JDPTXjqJp06T7BWTYfaCYcsdtE2wYXJdtoC0jSF-F5DY60vvfZ/exec";
+const COURSES = [
+    { name:"ACLS 課程", date:"2026-06-13", type:"acls", display:"06/13 – 06/14" },
+    { name:"ACLS 課程", date:"2026-09-19", type:"acls", display:"09/19 – 09/20" },
+    { name:"ALS 課程",  date:"2026-10-31", type:"als",  display:"10/31 單日" },
+    { name:"ACLS 課程", date:"2026-11-14", type:"acls", display:"11/14 – 11/15" },
+    { name:"ALS 課程",  date:"2026-12-19", type:"als",  display:"12/19 – 12/20" }
+];
+const BACKUP_TEACHERS = [
+    {name:"陳志成",job:"永康奇美醫院長室副院長",      date:"115.07.27-118.07.26",hours:0},
+    {name:"陳奇祥",job:"永康奇美院長室醫務秘書",      date:"115.03.17-118.03.16",hours:0},
+    {name:"陳欽明",job:"柳營奇美加護醫學部部長",      date:"115.06.25-118.06.24",hours:0},
+    {name:"楊俊杰",job:"永康奇美加護醫學部次專科主任",date:"113.06.25-115.06.24",hours:32},
+    {name:"杜漢祥",job:"永康奇美品質管理部部長",      date:"113.09.18-115.09.17",hours:10},
+    {name:"吳文憲",job:"永康奇美心臟內科主治醫師",    date:"115.04.07-118.04.06",hours:0},
+    {name:"黃恒慶",job:"柳營奇美胸腔內科主治醫師",    date:"113.03.05-115.03.04",hours:31},
+    {name:"方楸淑",job:"樹人醫專護理科助理教授",      date:"113.10.20-115.10.19",hours:20},
+    {name:"顏慧芳",job:"永康奇美加護醫學部高階護理師", date:"113.10.20-115.10.19",hours:24},
+    {name:"沈美麗",job:"前奇美高階護理師",            date:"113.08.27-115.08.26",hours:16},
+    {name:"林淑卿",job:"永康奇美加護醫學部專科護理師", date:"113.08.14-115.08.13",hours:18},
+    {name:"曾妍鳳",job:"佳里奇美專師小組長",          date:"113.09.24-115.09.23",hours:35},
+    {name:"李美玲",job:"永康奇美外科部專師組長",      date:"113.03.05-115.03.04",hours:20},
+    {name:"林子祺",job:"柳營奇美護理部副部長",        date:"113.03.05-115.03.04",hours:27},
+    {name:"陳慶嘉",job:"柳營奇美急診小組長",          date:"113.08.25-115.08.24",hours:40},
+    {name:"杜忠洋",job:"柳營奇美急診專科護理師",      date:"113.08.25-115.08.24",hours:21},
+    {name:"黃建程",job:"永康奇美急診醫學部主任",      date:"113.04.09-115.04.08",hours:0},
+    {name:"蕭雯澤",job:"國軍左營總醫院內科部專科護理師",date:"113.09.02-115.09.01",hours:26},
+    {name:"陳思羽",job:"中國醫藥大學北港附醫專科護理師",date:"113.11.10-115.11.09",hours:42},
+    {name:"呂居學",job:"嘉義長庚心臟外科高階護理師",  date:"113.08.23-115.08.22",hours:0},
+    {name:"張志然",job:"成大急診部主治醫師",          date:"114.05.13-116.05.12",hours:0},
+    {name:"鄭雅蕙",job:"高長急診醫學部專科護理師",    date:"115.07.22-118.07.21",hours:0},
+    {name:"吳孟杰",job:"郭綜合急診醫學科主任",        date:"113.09.21-115.09.20",hours:0}
+];
+
+function rocToDate(rocStr) {
+    const part = rocStr.includes('-') ? rocStr.split('-')[1] : rocStr;
+    const seg = part.trim().replace(/-/g, '.').split('.');
+    if (seg.length < 3) return null;
+    const y = parseInt(seg[0]) + 1911, m = parseInt(seg[1]) - 1, d = parseInt(seg[2]);
+    const dt = new Date(y, m, d);
+    return isNaN(dt.getTime()) ? null : dt;
+}
+function daysUntilExpiry(rocStr) {
+    const exp = rocToDate(rocStr);
+    if (!exp) return null;
+    const now = new Date(); now.setHours(0,0,0,0);
+    return Math.ceil((exp - now) / 86400000);
+}
+function expiryStatus(rocStr) {
+    const days = daysUntilExpiry(rocStr);
+    if (days === null) return { cls:'', badge:'', label:'—' };
+    if (days <= 90)  return { cls:'exp-crit', badge:'crit', label:`剩 ${days} 天` };
+    if (days <= 180) return { cls:'exp-warn', badge:'warn', label:`剩 ${days} 天` };
+    return { cls:'exp-ok', badge:'', label:`剩 ${days} 天` };
+}
+const BACKUP_KPI = { totalCourses:'48', totalStudents:'3844', totalAttended:'3259', totalPassed:'3222', passRate:'83.8%', absentRate:'15.2%', surveyRate:'98.5%', avgSatisfaction:'4.92' };
+let globalTeachers = [...BACKUP_TEACHERS];
+let charts = {};
+
+function buildCalendar() {
+    const now = new Date(); now.setHours(0,0,0,0);
+    let foundNearest = false;
+    const html = COURSES.map(c => {
+        const cDate = new Date(c.date + 'T00:00:00');
+        const days = Math.ceil((cDate - now) / 86400000);
+        let cls = '', badgeHtml, countdown;
+        if (days < -1) { cls = 'passed'; badgeHtml = `<span class="cal-badge badge-${c.type}">${c.name}</span>`; countdown = '課程已圓滿落幕'; }
+        else if (!foundNearest) { cls = 'nearest'; foundNearest = true; badgeHtml = `<span class="cal-badge badge-hot">🔥 最近期檔期</span>`; countdown = days <= 0 ? '⏳ 今日開課！' : `⏳ 倒數 ${days} 天`; }
+        else { badgeHtml = `<span class="cal-badge badge-${c.type}">${c.name}</span>`; countdown = `備戰中（剩 ${days} 天）`; }
+        return `<div class="cal-item ${cls}">${badgeHtml}<div class="cal-date">${c.display}</div><div class="cal-countdown">${countdown}</div></div>`;
+    }).join('');
+    document.getElementById('calendar-container').innerHTML = html;
+}
+
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.font  = { family: "'PingFang TC','Microsoft JhengHei',sans-serif", size: 12 };
+
+function initCharts() {
+    Chart.register(ChartDataLabels);
+    charts.trend = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: ['2017','2018','2019','2020','2021','2022','2023','2024','2025','2026'],
+            datasets: [
+                { label:'實到人數', data:[553,345,516,143,212,329,516,240,254,151], borderColor:'#4facfe', backgroundColor:'rgba(79,172,254,0.1)', fill:true, tension:0.4, pointRadius:5, datalabels:{ align:'top', anchor:'end', color:'#4facfe', font:{size:10,weight:'bold'}, formatter:v=>v.toLocaleString() } },
+                { label:'通過率 (%)', data:[98.2,94.5,102.1,100,93.9,100,98.8,100,100,100], borderColor:'#00e676', backgroundColor:'transparent', yAxisID:'y2', tension:0.4, pointRadius:5, borderDash:[5,3], datalabels:{ align:'bottom', anchor:'end', color:'#00e676', font:{size:10,weight:'bold'}, formatter:v=>v.toFixed(1)+'%' } }
+            ]
+        },
+        options: { responsive:true, plugins:{ legend:{ labels:{ color:'#94a3b8', boxWidth:14 } }, datalabels:{ display:true } }, scales:{ x:{ grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ color:'#94a3b8' } }, y:{ grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ color:'#94a3b8' } }, y2:{ position:'right', min:80, max:110, grid:{ display:false }, ticks:{ color:'#00e676', callback:v=>v+'%' } } } }
+    });
+    charts.structure = new Chart(document.getElementById('structureChart'), {
+        type:'doughnut',
+        data:{ labels:['護理師','醫師','實習醫學生','其他'], datasets:[{ data:[1879,953,109,71], backgroundColor:['#4facfe','#00f2fe','#00e676','#ffd740'], borderWidth:0, hoverOffset:6 }] },
+        options:{ responsive:true, plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', padding:12, boxWidth:12 } }, datalabels:{ display:false } } }
+    });
+    charts.radar = new Chart(document.getElementById('satisfactionRadar'), {
+        type:'radar',
+        data:{ labels:['課程時數安排','教材內容準備','臨床應用性','硬體設備環境','課程活動安排'], datasets:[{ label:'滿意度評分', data:[4.88,4.92,4.95,4.91,4.94], backgroundColor:'rgba(255,215,64,0.12)', borderColor:'#ffd740', pointBackgroundColor:'#ffd740', pointRadius:4 }] },
+        options:{ responsive:true, plugins:{ legend:{ display:false }, datalabels:{ display:false } }, scales:{ r:{ min:4.0, max:5.0, ticks:{ display:false, stepSize:0.25 }, grid:{ color:'rgba(255,255,255,0.08)' }, angleLines:{ color:'rgba(255,255,255,0.08)' }, pointLabels:{ color:'#e2e8f0', font:{ size:11 } } } } }
+    });
+    charts.bar = new Chart(document.getElementById('hoursBarChart').getContext('2d'), {
+        type:'bar',
+        data:{ labels:[], datasets:[{ label:'授課積分', data:[], backgroundColor:'rgba(96,165,250,0.35)', borderColor:'#60a5fa', borderWidth:1.5, borderRadius:5 }] },
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ color:'#94a3b8' } }, y:{ grid:{ display:false }, ticks:{ color:'#f0f4ff', font:{ size:12 } } } } }
+    });
+}
+
+function renderTable(data) {
+    const tbody = document.getElementById('teacher-tbody');
+    if (!tbody) return;
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-2);">查無資料</td></tr>'; return; }
+    tbody.innerHTML = data.map(t => {
+        const st = expiryStatus(t.date);
+        const badgeHtml = st.badge ? `<span class="exp-badge ${st.badge}">${st.badge==='crit'?'⚠ 即將到期':'注意'}</span>` : '';
+        return `<tr><td><strong style="color:var(--text-1)">${t.name}</strong></td><td style="color:var(--text-2)">${t.job}</td><td><span style="color:var(--cyan);font-weight:700">${t.hours}</span> 小時</td><td style="color:var(--text-2)">${t.date}</td><td class="${st.cls}">${st.label}${badgeHtml}</td></tr>`;
+    }).join('');
+}
+
+function updateExpiryKPI(data) {
+    let exp90=0, exp180=0, valid=0;
+    data.forEach(t => { const d = daysUntilExpiry(t.date); if(d===null)return; if(d<=90)exp90++; else if(d<=180)exp180++; else valid++; });
+    document.getElementById('count-total').textContent    = data.length;
+    document.getElementById('count-expiring90').textContent  = exp90;
+    document.getElementById('count-expiring180').textContent = exp180;
+    document.getElementById('count-valid').textContent    = valid;
+}
+function updateTop10() {
+    const top = [...globalTeachers].sort((a,b)=>b.hours-a.hours).slice(0,10);
+    charts.bar.data.labels = top.map(t=>t.name);
+    charts.bar.data.datasets[0].data = top.map(t=>t.hours);
+    charts.bar.update();
+}
+function updateKPI(d) {
+    const set = (id,val) => { const el=document.getElementById(id); if(el&&val!=null&&val!=='') el.textContent=val; };
+    set('kpi-passrate', d.passRate); set('kpi-absentrate', d.absentRate);
+    set('kpi-survey', d.surveyRate); set('avg-satisfaction', d.avgSatisfaction);
+    if(d.totalCourses)  animateKPI('kpi-courses',  d.totalCourses,  '');
+    if(d.totalStudents) animateKPI('kpi-enrolled',  d.totalStudents, '');
+    if(d.totalAttended) animateKPI('kpi-attended',  d.totalAttended, '');
+    if(d.totalPassed)   animateKPI('kpi-passed',    d.totalPassed,   '');
+    if(d.keywords) document.getElementById('keyword-container').innerHTML = d.keywords.split(',').map(k=>`<div class="keyword">${k.trim()}</div>`).join('');
+    if(charts.structure && d.chartNurse!==undefined) { charts.structure.data.datasets[0].data=[d.chartNurse,d.chartDoctor,d.chartStudent,d.chartOther]; charts.structure.update(); }
+    if(charts.radar && d.radarTime!==undefined) { charts.radar.data.datasets[0].data=[d.radarTime,d.radarContent,d.radarClinical,d.radarDevice,d.radarActivity]; charts.radar.update(); }
+}
+function hideLoading() {
+    const el = document.getElementById('loading-overlay');
+    el.classList.add('fade-out');
+    setTimeout(() => el.classList.add('hidden'), 400);
+}
+function fetchCloud() {
+    const callbackName = 'gasCallback_' + Date.now();
+    const script = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(() => { if(!done){done=true;cleanup();hideLoading();} }, 5000);
+    function cleanup() { delete window[callbackName]; if(script.parentNode) script.parentNode.removeChild(script); clearTimeout(timer); }
+    window[callbackName] = function(data) {
+        if(done) return; done=true; cleanup();
+        try {
+            if(data&&!data.error) {
+                updateKPI(data);
+                if(Array.isArray(data.teacherData)&&data.teacherData.length>0) {
+                    globalTeachers = data.teacherData.map(t=>({ name:t.姓名||'未命名', job:t.職務||'無紀錄', hours:isNaN(Number(t.積分))?0:Number(t.積分), date:t.證書效期||'無紀錄' }));
+                }
+            }
+        } catch(e) { console.warn('資料解析失敗',e); }
+        finally { hideLoading(); renderTable(globalTeachers); updateExpiryKPI(globalTeachers); updateTop10(); }
+    };
+    script.src = API_URL + '?callback=' + callbackName;
+    script.onerror = function() { if(!done){done=true;cleanup();hideLoading();} };
+    document.head.appendChild(script);
+}
+
+function switchTab(id) {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    const btnMap = { 'page-dashboard':'btn-tab1', 'page-teacher':'btn-tab2', 'page-resource':'btn-tab3' };
+    document.getElementById(btnMap[id]).classList.add('active');
+    if(id==='page-teacher'&&charts.bar) charts.bar.resize();
+}
+
+function switchGuide(id) {
+    document.querySelectorAll('.guide-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.guide-page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('guide-' + id).classList.add('active');
+    document.querySelector(`.guide-tab[data-guide="${id}"]`).classList.add('active');
+}
+
+document.getElementById('searchBox').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    renderTable(globalTeachers.filter(t=>t.name.toLowerCase().includes(q)||t.job.toLowerCase().includes(q)));
+});
+
+const YEARLY_DATA = [
+    { year:2017, label:'2017', courses:5,  enrolled:567, attended:553, passed:543 },
+    { year:2018, label:'2018', courses:3,  enrolled:343, attended:345, passed:326 },
+    { year:2019, label:'2019', courses:4,  enrolled:520, attended:516, passed:527 },
+    { year:2020, label:'2020', courses:3,  enrolled:686, attended:143, passed:143 },
+    { year:2021, label:'2021', courses:4,  enrolled:224, attended:212, passed:199 },
+    { year:2022, label:'2022', courses:5,  enrolled:326, attended:329, passed:329 },
+    { year:2023, label:'2023', courses:9,  enrolled:515, attended:516, passed:510 },
+    { year:2024, label:'2024', courses:5,  enrolled:242, attended:240, passed:240 },
+    { year:2025, label:'2025', courses:4,  enrolled:254, attended:254, passed:254 },
+    { year:2026, label:'2026', courses:6,  enrolled:167, attended:151, passed:151 },
+];
+const ALL_YEAR = { year:0, label:'全部', courses:48, enrolled:3844, attended:3259, passed:3222 };
+let currentYear = 0;
+
+function buildYearBtns() {
+    const wrap = document.getElementById('year-btns');
+    if(!wrap) return;
+    wrap.innerHTML = [ALL_YEAR,...YEARLY_DATA].map(y=>`<button class="yr-btn ${y.year===0?'active':''}" onclick="selectYear(${y.year})">${y.label}</button>`).join('');
+}
+function selectYear(year) {
+    currentYear = year;
+    document.querySelectorAll('.yr-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.yr-btn').forEach(b=>{ if(b.textContent===(year===0?'全部':String(year))) b.classList.add('active'); });
+    const d = year===0 ? ALL_YEAR : YEARLY_DATA.find(y=>y.year===year)||ALL_YEAR;
+    const prefix = year===0 ? '總' : year+' 年';
+    document.getElementById('lbl-courses').textContent  = prefix+' 課程場次';
+    document.getElementById('lbl-enrolled').textContent = prefix+' 報名人數';
+    document.getElementById('lbl-attended').textContent = prefix+' 實到人數';
+    document.getElementById('lbl-passed').textContent   = prefix+' 通過人數';
+    animateKPI('kpi-courses', d.courses, ''); animateKPI('kpi-enrolled', d.enrolled, '');
+    animateKPI('kpi-attended', d.attended, ''); animateKPI('kpi-passed', d.passed, '');
+    const passRate   = d.attended>0 ? (d.passed/d.attended*100).toFixed(1)+'%' : '—';
+    const absentRate = d.enrolled>0 ? ((d.enrolled-d.attended)/d.enrolled*100).toFixed(1)+'%' : '—';
+    document.getElementById('kpi-passrate').textContent   = passRate;
+    document.getElementById('kpi-absentrate').textContent = absentRate;
+    updateTrendHighlight(year);
+}
+function updateTrendHighlight(year) {
+    if(!charts.trend) return;
+    const attendedData = YEARLY_DATA.map(y=>y.attended);
+    const passRateData = YEARLY_DATA.map(y=>y.attended>0?parseFloat((y.passed/y.attended*100).toFixed(1)):0);
+    charts.trend.data.datasets[0].data = attendedData; charts.trend.data.datasets[1].data = passRateData;
+    const idx = year===0 ? -1 : YEARLY_DATA.findIndex(y=>y.year===year);
+    charts.trend.data.datasets[0].pointRadius = attendedData.map((_,i)=>year===0?5:(i===idx?9:4));
+    charts.trend.data.datasets[0].pointBackgroundColor = attendedData.map((_,i)=>year===0?'#4facfe':(i===idx?'#ffd740':'#4facfe'));
+    charts.trend.data.datasets[1].pointRadius = passRateData.map((_,i)=>year===0?5:(i===idx?9:4));
+    charts.trend.data.datasets[1].pointBackgroundColor = passRateData.map((_,i)=>year===0?'#00e676':(i===idx?'#ffd740':'#00e676'));
+    charts.trend.update();
+}
+function countUp(el, target, duration, suffix) {
+    const isFloat = target%1!==0;
+    const startTime = performance.now();
+    function step(now) {
+        const elapsed = now-startTime, progress = Math.min(elapsed/duration,1);
+        const ease = progress===1?1:1-Math.pow(2,-10*progress);
+        const current = target*ease;
+        el.textContent = (isFloat?current.toFixed(1):Math.floor(current).toLocaleString())+(suffix||'');
+        if(progress<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+function animateKPI(id, rawVal, suffix) {
+    const el = document.getElementById(id);
+    if(!el) return;
+    const num = parseFloat(rawVal.toString().replace(/[^0-9.]/g,''));
+    if(isNaN(num)) return;
+    countUp(el, num, 1800, suffix||rawVal.toString().replace(/[0-9.,]/g,''));
+}
+const INSTRUCTOR_SAT = [
+    { name:'杜漢祥', data:[68,28,3,1,0] },
+    { name:'陳志成', data:[62,32,5,1,0] },
+    { name:'陳思羽', data:[70,25,4,1,0] },
+    { name:'陳奇祥', data:[58,36,5,1,0] },
+    { name:'杜忠洋', data:[55,34,9,2,0] },
+    { name:'林淑卿', data:[60,30,8,2,0] },
+    { name:'蕭雯澤', data:[63,29,6,2,0] },
+    { name:'吳文憲', data:[42,35,14,6,3] },
+];
+const SAT_COLORS = ['#e64a19','#ff8a65','#78909c','#5c6bc0','#283593'];
+const SAT_LABELS = ['非常滿意','滿意','普通','不滿意','非常不滿意'];
+function buildInstructorChart(data) {
+    const container = document.getElementById('instructor-sat-chart');
+    if(!container) return;
+    const scores = data.map(d=>d.data[0]);
+    const maxScore = Math.max(...scores), minScore = Math.min(...scores);
+    container.innerHTML = data.map(inst=>{
+        const veryGood = inst.data[0];
+        const isTop = veryGood===maxScore, isLow = veryGood===minScore&&veryGood!==maxScore;
+        const nameStyle = isTop?'color:var(--gold);font-weight:700;':isLow?'color:var(--text-2);':'';
+        const pctStyle  = isTop?'color:var(--gold);font-weight:900;':isLow?'color:var(--text-2);':'';
+        const segs = inst.data.map((pct,i)=>pct===0?'':`<div class="sat-seg" style="width:${pct}%;background:${SAT_COLORS[i]}${isTop?';filter:brightness(1.15)':''}"></div>`).join('');
+        const tooltipParts = SAT_LABELS.map((l,i)=>`${l} ${inst.data[i]}%`).filter((_,i)=>inst.data[i]>0).join(' · ');
+        const crownHtml = isTop?' 👑':'';
+        return `<div class="sat-row"><div class="sat-name" title="${inst.name}" style="${nameStyle}">${inst.name}${crownHtml}</div><div class="sat-bar-wrap">${segs}<div class="sat-tooltip">${tooltipParts}</div></div><div class="sat-pct" style="${pctStyle}">${veryGood}%</div></div>`;
+    }).join('');
+}
+const FEEDBACKS = [
+    { text:"課程安排非常充實，對臨床急救非常有幫助！", author:"急診科護理師" },
+    { text:"情境模擬設計貼近真實場景，讓我印象深刻，回到病房馬上就用上了。", author:"加護病房專科護理師" },
+    { text:"講師解說清楚，互動性強，原本對 ACLS 很陌生，現在信心大增！", author:"內科住院醫師" },
+    { text:"設備完善、分組討論充分，是我參加過最有收穫的急救課程。", author:"外科部護理師" },
+    { text:"案例設計非常符合臨床，建議未來能增加更多跨科別情境。", author:"ICU 醫師" },
+    { text:"團隊溝通的訓練讓我重新思考緊急情況下的領導方式。", author:"護理部主任" },
+];
+let carouselIndex = 0, carouselTimer = null;
+function buildCarousel() {
+    const track = document.getElementById('carousel-track'), dots = document.getElementById('carousel-dots');
+    if(!track||!dots) return;
+    track.innerHTML = FEEDBACKS.map(f=>`<div class="carousel-slide"><div class="fb-block">"${f.text}"<div class="fb-author">— ${f.author}</div></div></div>`).join('');
+    dots.innerHTML  = FEEDBACKS.map((_,i)=>`<div class="c-dot ${i===0?'active':''}" onclick="goSlide(${i})"></div>`).join('');
+    clearInterval(carouselTimer);
+    carouselTimer = setInterval(()=>goSlide((carouselIndex+1)%FEEDBACKS.length), 4500);
+}
+function goSlide(i) {
+    carouselIndex = i;
+    const track = document.getElementById('carousel-track');
+    if(track) track.style.transform = `translateX(-${i*100}%)`;
+    document.querySelectorAll('.c-dot').forEach((d,idx)=>d.classList.toggle('active',idx===i));
+}
+document.addEventListener('DOMContentLoaded', () => {
+    initCharts(); buildCalendar(); buildInstructorChart(INSTRUCTOR_SAT);
+    buildCarousel(); buildYearBtns(); selectYear(0); updateKPI(BACKUP_KPI);
+    renderTable(BACKUP_TEACHERS); updateExpiryKPI(BACKUP_TEACHERS); updateTop10(); fetchCloud();
+});
+</script>
+
+<script>
+(function() {
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+    let W, H, stars = [], shootingStars = [];
+    function Star() {
+        this.reset = function() { this.x=Math.random()*W; this.y=Math.random()*H; this.r=Math.random()*1.4+0.2; this.alpha=Math.random()*0.6+0.2; this.da=(Math.random()*0.004+0.001)*(Math.random()<0.5?1:-1); this.color=Math.random()<0.15?`hsl(${200+Math.random()*40},80%,85%)`:Math.random()<0.1?`hsl(${40+Math.random()*20},90%,90%)`:'#ffffff'; };
+        this.reset();
+    }
+    function ShootingStar() {
+        this.reset = function() { this.x=Math.random()*W*0.7; this.y=Math.random()*H*0.4; this.len=Math.random()*120+60; this.speed=Math.random()*6+4; this.angle=Math.PI/4+(Math.random()-0.5)*0.3; this.alpha=1; this.alive=true; };
+        this.reset();
+    }
+    function resize() { W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; }
+    function init() { resize(); stars = Array.from({length:260},()=>new Star()); setTimeout(spawnShootingStar, 3000); }
+    function spawnShootingStar() { shootingStars.push(new ShootingStar()); setTimeout(spawnShootingStar, 6000+Math.random()*8000); }
+    function draw() {
+        ctx.clearRect(0,0,W,H);
+        const bg = ctx.createRadialGradient(W*0.3,H*0.2,0,W*0.3,H*0.2,W*0.8);
+        bg.addColorStop(0,'rgba(4,12,30,1)'); bg.addColorStop(0.5,'rgba(2,8,20,1)'); bg.addColorStop(1,'rgba(1,4,12,1)');
+        ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+        const n1=ctx.createRadialGradient(W*0.15,H*0.25,0,W*0.15,H*0.25,W*0.3);
+        n1.addColorStop(0,'rgba(20,60,160,0.07)'); n1.addColorStop(1,'transparent');
+        ctx.fillStyle=n1; ctx.fillRect(0,0,W,H);
+        const n2=ctx.createRadialGradient(W*0.8,H*0.7,0,W*0.8,H*0.7,W*0.35);
+        n2.addColorStop(0,'rgba(0,120,100,0.05)'); n2.addColorStop(1,'transparent');
+        ctx.fillStyle=n2; ctx.fillRect(0,0,W,H);
+        stars.forEach(s=>{ s.alpha+=s.da; if(s.alpha>0.9||s.alpha<0.1) s.da*=-1; ctx.save(); ctx.globalAlpha=Math.max(0.05,s.alpha); ctx.fillStyle=s.color; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); ctx.restore(); });
+        shootingStars=shootingStars.filter(ss=>ss.alive);
+        shootingStars.forEach(ss=>{ const tx=ss.x+Math.cos(ss.angle)*ss.len, ty=ss.y+Math.sin(ss.angle)*ss.len; const grad=ctx.createLinearGradient(ss.x,ss.y,tx,ty); grad.addColorStop(0,'rgba(255,255,255,0)'); grad.addColorStop(0.3,`rgba(180,220,255,${ss.alpha*0.6})`); grad.addColorStop(1,`rgba(255,255,255,${ss.alpha})`); ctx.save(); ctx.globalAlpha=ss.alpha; ctx.strokeStyle=grad; ctx.lineWidth=1.5; ctx.shadowColor='rgba(180,220,255,0.8)'; ctx.shadowBlur=4; ctx.beginPath(); ctx.moveTo(ss.x,ss.y); ctx.lineTo(tx,ty); ctx.stroke(); ctx.restore(); ss.x+=Math.cos(ss.angle)*ss.speed; ss.y+=Math.sin(ss.angle)*ss.speed; ss.alpha-=0.018; if(ss.alpha<=0) ss.alive=false; });
+        requestAnimationFrame(draw);
+    }
+    window.addEventListener('resize',resize);
+    init(); draw();
+})();
+</script>
+</body>
+</html>
