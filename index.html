@@ -165,8 +165,30 @@
         .carousel-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
         .c-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); cursor: pointer; transition: background 0.2s; }
         .c-dot.active { background: var(--gold); }
-        .video-wrap { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: var(--radius-sm); border: 1px solid var(--border); background: rgba(0,0,0,0.35); }
-        .video-wrap iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+        /* ══ YouTube Facade (lazy load) ══ */
+        .yt-facade {
+            position: relative; width: 100%; padding-bottom: 56.25%; height: 0;
+            border-radius: var(--radius-sm); overflow: hidden;
+            border: 1px solid var(--border); background: #000; cursor: pointer;
+        }
+        .yt-thumb {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; transition: filter 0.25s;
+        }
+        .yt-facade:hover .yt-thumb { filter: brightness(0.75); }
+        .yt-play {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            width: 68px; height: 68px; border-radius: 50%;
+            background: rgba(255,0,0,0.88); border: none; cursor: pointer;
+            font-size: 1.6rem; color: #fff; display: flex; align-items: center;
+            justify-content: center; padding-left: 5px;
+            transition: transform 0.2s, background 0.2s;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+        }
+        .yt-facade:hover .yt-play { transform: translate(-50%,-50%) scale(1.12); background: rgba(255,0,0,1); }
+        .yt-facade iframe {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;
+        }
         .resource-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .resource-btn { display: block; padding: 16px 18px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-1); text-decoration: none; font-weight: 600; transition: all 0.25s ease; }
         .resource-btn:hover { background: rgba(0,229,255,0.12); border-color: var(--cyan); transform: translateY(-2px); }
@@ -426,11 +448,17 @@
         </div>
         <div class="card span-2">
             <h2>院內急救流程影片</h2>
-            <div class="video-wrap"><iframe src="https://www.youtube.com/embed/ZygaDHVcplQ" title="院內急救流程影片" allowfullscreen></iframe></div>
+            <div class="yt-facade" data-vid="ZygaDHVcplQ">
+                <img class="yt-thumb" src="https://img.youtube.com/vi/ZygaDHVcplQ/maxresdefault.jpg" alt="院內急救流程影片" onerror="this.src='https://img.youtube.com/vi/ZygaDHVcplQ/hqdefault.jpg'">
+                <button class="yt-play" aria-label="播放影片">&#9654;</button>
+            </div>
         </div>
         <div class="card span-2">
             <h2>2025 美國心臟醫學會 AHA 指引更新</h2>
-            <div class="video-wrap"><iframe src="https://www.youtube.com/embed/OfuGRccwIo4" title="2025 AHA 指引更新" allowfullscreen></iframe></div>
+            <div class="yt-facade" data-vid="OfuGRccwIo4">
+                <img class="yt-thumb" src="https://img.youtube.com/vi/OfuGRccwIo4/maxresdefault.jpg" alt="2025 AHA 指引更新" onerror="this.src='https://img.youtube.com/vi/OfuGRccwIo4/hqdefault.jpg'">
+                <button class="yt-play" aria-label="播放影片">&#9654;</button>
+            </div>
         </div>
         <div class="card span-4">
             <h2>課程輔助教材</h2>
@@ -1154,7 +1182,6 @@ function goSlide(i) {
     if(track) track.style.transform = `translateX(-${i*100}%)`;
     document.querySelectorAll('.c-dot').forEach((d,idx)=>d.classList.toggle('active',idx===i));
 }
-// ── 課程講師講義資料（講師演講資料 1 / 2 / 3） ──
 const LECTURERS = [
     { name:"許志新醫師", sub:"2025 Post-Arrest Care（復甦後照護）", tags:["ACLS","復甦後照護","2025更新"],
       file:"講師演講資料1/許志新醫師_2025 Post-Arrest_Care 許志新 (1).pdf" },
@@ -1263,6 +1290,21 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize',resize);
     init(); draw();
 })();
+</script>
+
+<!-- ══ YouTube Facade: click-to-play ══ -->
+<script>
+document.querySelectorAll('.yt-facade').forEach(function(facade) {
+    facade.addEventListener('click', function() {
+        var vid = this.dataset.vid;
+        var iframe = document.createElement('iframe');
+        iframe.src = 'https://www.youtube.com/embed/' + vid + '?autoplay=1&rel=0';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        this.innerHTML = '';
+        this.appendChild(iframe);
+    });
+});
 </script>
 </body>
 </html>
